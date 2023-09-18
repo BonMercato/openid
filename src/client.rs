@@ -19,6 +19,7 @@ use chrono::Duration;
 use reqwest::header::{ACCEPT, CONTENT_TYPE};
 use serde_json::Value;
 use std::{borrow::Cow, marker::PhantomData};
+use tracing::debug;
 use url::{form_urlencoded::Serializer, Url};
 
 /// OpenID Connect 1.0 / OAuth 2.0 client.
@@ -395,6 +396,7 @@ impl<C: CompactJson + Claims, P: Provider + Configurable> Client<P, C> {
                 let info: U = match (mime_type.type_(), mime_type.subtype().as_str()) {
                     (mime::APPLICATION, "json") => {
                         let info_value: Value = response.json().await?;
+                        debug!("Userinfo response: {:?}", info_value);
                         if info_value.get("error").is_some() {
                             let oauth2_error: OAuth2Error = serde_json::from_value(info_value)?;
                             return Err(Error::ClientError(oauth2_error.into()));
@@ -548,6 +550,7 @@ where
         };
 
         let json = self.post_token(body).await?;
+        debug!("Token response: {:?}", json);
         let token: Bearer = serde_json::from_value(json)?;
         Ok(token)
     }
