@@ -1,5 +1,7 @@
+use std::fmt::Display;
+use std::str::FromStr;
 use de::Visitor;
-use serde::de;
+use serde::{de, Deserialize};
 use serde::Deserializer;
 
 pub fn bool_from_str_or_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
@@ -37,71 +39,33 @@ impl<'de> Visitor<'de> for BoolOrStringVisitor {
     }
 }
 
-pub fn i64_from_str_or_i64<'de, D>(deserializer: D) -> Result<i64, D::Error>
+pub fn deserialize_option_number_from_string<'de, T, D>(
+    deserializer: D,
+) -> Result<Option<T>, D::Error>
     where
         D: Deserializer<'de>,
+        T: FromStr + serde::Deserialize<'de>,
+        <T as FromStr>::Err: Display,
 {
-    deserializer.deserialize_any(I64OrStringVisitor)
-}
-
-struct I64OrStringVisitor;
-
-impl<'de> Visitor<'de> for I64OrStringVisitor {
-    type Value = i64;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a i64 or string of i64.")
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum NumericOrNull<'a, T> {
+        Str(&'a str),
+        String(String),
+        Numeric(T),
+        Null,
     }
 
-    fn visit_i64<E>(self, value: i64) -> Result<i64, E>
-        where
-            E: de::Error,
-    {
-        Ok(value)
-    }
-
-    fn visit_str<E>(self, value: &str) -> Result<i64, E>
-        where
-            E: de::Error,
-    {
-        match value.parse::<i64>() {
-            Ok(i) => Ok(i),
-            Err(_) => Err(E::custom(format!("Unknown string value: {}", value))),
-        }
-    }
-}
-
-// also deserialize i64 or string to Option<i64>
-pub fn option_i64_from_str_or_i64<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
-    where
-        D: Deserializer<'de>,
-{
-    deserializer.deserialize_any(OptionI64OrStringVisitor)
-}
-
-struct OptionI64OrStringVisitor;
-
-impl<'de> Visitor<'de> for OptionI64OrStringVisitor {
-    type Value = Option<i64>;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a i64 or string of i64.")
-    }
-
-    fn visit_i64<E>(self, value: i64) -> Result<Option<i64>, E>
-        where
-            E: de::Error,
-    {
-        Ok(Some(value))
-    }
-
-    fn visit_str<E>(self, value: &str) -> Result<Option<i64>, E>
-        where
-            E: de::Error,
-    {
-        match value.parse::<i64>() {
-            Ok(i) => Ok(Some(i)),
-            Err(_) => Err(E::custom(format!("Unknown string value: {}", value))),
-        }
+    match NumericOrNull::<T>::deserialize(deserializer)? {
+        NumericOrNull::Str(s) => match s {
+            "" => Ok(None),
+            _ => T::from_str(s).map(Some).map_err(serde::de::Error::custom),
+        },
+        NumericOrNull::String(s) => match s.as_str() {
+            "" => Ok(None),
+            _ => T::from_str(s.as_str()).map(Some).map_err(serde::de::Error::custom),
+        },
+        NumericOrNull::Numeric(i) => Ok(Some(i)),
+        NumericOrNull::Null => Ok(None),
     }
 }

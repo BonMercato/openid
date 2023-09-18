@@ -1,10 +1,9 @@
-use crate::{deserializers::{bool_from_str_or_bool}, Address, StandardClaimsSubject};
+use crate::{deserializers::{bool_from_str_or_bool, deserialize_option_number_from_string}, Address, StandardClaimsSubject};
 
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use validator::Validate;
-use serde_aux::field_attributes::deserialize_option_number_from_string;
 
 /// The userinfo struct contains all possible userinfo fields regardless of scope. [See spec.](https://openid.net/specs/openid-connect-basic-1_0.html#StandardClaims)
 #[derive(Debug, Deserialize, Serialize, Validate, Clone, Eq, PartialEq)]
@@ -86,3 +85,31 @@ impl StandardClaimsSubject for Userinfo {
 }
 
 impl biscuit::CompactJson for Userinfo {}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    // Object {"sub": String("109ab37b-77ad-4135-a834-c6f040773744"), "email_verified": String("true"), "updated_at": String("1695028606"), "name": String("Jean-Luc Nürrenberg"), "preferred_username": String("cozygalvinism"), "email": String("jn@bonmercato.group"), "username": String("cozygalvinism")}
+    #[test]
+    fn test_deserialize() {
+        let json = json!({
+            "sub": "109ab37b-77ad-4135-a834-c6f040773744",
+            "email_verified": "true",
+            "updated_at": "1695028606",
+            "name": "Jean-Luc Nürrenberg",
+            "preferred_username": "cozygalvinism",
+            "email": "jn@bonmercato.group",
+            "username": "cozygalvinism"
+        });
+
+        let userinfo: Result<super::Userinfo, _> = serde_json::from_value(json);
+        if let Err(e) = userinfo {
+            println!("{:?}", e);
+            assert!(false);
+            return;
+        }
+        let _userinfo = userinfo.unwrap();
+        println!("{:?}", _userinfo);
+    }
+}
